@@ -1,0 +1,155 @@
+// Prisma schema for the AI Answering Service.
+//
+// IMPORTANT: Row-level security (RLS) is enforced at the Postgres layer via
+// `prisma/migrations/<timestamp>_enable_rls/migration.sql`. Prisma is unaware
+// of RLS — it just runs queries. The middleware at src/lib/db.ts is what makes
+// RLS actually work: it wraps every query in a transaction that runs
+// `SET LOCAL app.current_tenant = '<tenant_id>'` first.
+//
+// If you query Prisma without going through `withTenant()`, RLS will block
+// every read. That is intentional — it's the safety net.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  STAFF
+}
+
+enum BillingStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum AppointmentStatus {
+  CONFIRMED
+  CANCELED
+  NO_SHOW
+  COMPLETED
+}
+
+enum AppointmentSource {
+  AI
+  MANUAL
+}
+
+model Tenant {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  billingStatus BillingStatus  @default(TRIALING) @map("billing_status")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  users         User[]
+  phoneNumbers  PhoneNumber[]
+  services      Service[]
+  calendarConn  GoogleCalendarConnection?
+  appointments  Appointment[]
+  callLogs      CallLog[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(OWNER)
+  tenantId     String   @map("tenant_id")
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+model PhoneNumber {
+  id              String  @id @default(cuid())
+  tenantId        String  @map("tenant_id")
+  tenant          Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  twilioSid       String  @unique @map("twilio_sid")
+  number          String  @unique // E.164
+  aiAssistantId   String? @map("ai_assistant_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@map("phone_numbers")
+}
+
+model Service {
+  id              String  @id @default(cuid())
+  tenantId        String  @map("tenant_id")
+  tenant          Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name            String
+  durationMinutes Int     @map("duration_minutes")
+  priceCents      Int     @map("price_cents")
+  active          Boolean @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  appointments    Appointment[]
+
+  @@index([tenantId])
+  @@map("services")
+}
+
+model GoogleCalendarConnection {
+  id                  String   @id @default(cuid())
+  tenantId            String   @unique @map("tenant_id")
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  googleAccountEmail  String   @map("google_account_email")
+  // Encrypted at the application layer via TENANT_SECRETS_KEY (AES-256-GCM).
+  // Stored as `<iv_b64>:<ciphertext_b64>:<tag_b64>`.
+  refreshTokenEncrypted String @map("refresh_token_encrypted")
+  calendarId          String   @map("calendar_id")
+  lastSyncedAt        DateTime? @map("last_synced_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@map("google_calendar_connections")
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  tenantId        String            @map("tenant_id")
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  serviceId       String            @map("service_id")
+  service         Service           @relation(fields: [serviceId], references: [id])
+  customerName    String            @map("customer_name")
+  customerPhone   String            @map("customer_phone")
+  startTime       DateTime          @map("start_time")
+  endTime         DateTime          @map("end_time")
+  googleEventId   String?           @map("google_event_id")
+  status          AppointmentStatus @default(CONFIRMED)
+  source          AppointmentSource @default(AI)
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  @@index([tenantId, startTime])
+  @@index([customerPhone])
+  @@map("appointments")
+}
+
+model CallLog {
+  id                String   @id @default(cuid())
+  tenantId          String   @map("tenant_id")
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  twilioCallSid     String   @unique @map("twilio_call_sid")
+  startedAt         DateTime @map("started_at")
+  durationSeconds   Int      @default(0) @map("duration_seconds")
+  // For MVP we store transcript in Postgres. If volume grows, move to object
+  // storage (R2/S3) and store a pointer here. See open question #3.
+  transcript        String?  @db.Text
+  outcome           String?  // free-form for MVP: "booked", "answered_only", "missed", etc.
+  languageDetected  String?  @map("language_detected")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, startedAt])
+  @@map("call_logs")
+}
