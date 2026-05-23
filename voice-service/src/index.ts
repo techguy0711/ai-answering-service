@@ -15,7 +15,7 @@ import "dotenv/config";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { createNodeWebSocket } from "@hono/node-ws";
-import { buildHangupTwiml, buildIncomingTwiml } from "./twiml.js";
+import { buildHangupTwiml, buildIncomingTwiml, buildLanguageSelectedTwiml } from "./twiml.js";
 import { ConversationRelayHandler } from "./conversation-relay.js";
 import { verifyTwilioSignature } from "./twilio-signature.js";
 
@@ -63,6 +63,40 @@ app.post("/voice/incoming", async (c) => {
       buildHangupTwiml(
         "We're sorry — this number isn't currently configured. Goodbye.",
       ),
+      200,
+      { "content-type": "text/xml" },
+    );
+  }
+
+  return c.body(twiml, 200, { "content-type": "text/xml" });
+});
+
+app.post("/voice/language", async (c) => {
+  const formData = await c.req.formData();
+  const params: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) params[k] = String(v);
+
+  const fullUrl = `https://${c.req.header("host")}${c.req.path}`;
+  const sig = c.req.header("x-twilio-signature") ?? null;
+  if (!verifyTwilioSignature({ signature: sig, url: fullUrl, params })) {
+    console.warn("[/voice/language] bad signature, rejecting");
+    return c.text("forbidden", 403);
+  }
+
+  const called = params.To ?? params.Called ?? "";
+  const caller = params.From ?? "";
+  const callSid = params.CallSid ?? "";
+  const digit = params.Digits ?? "";
+
+  const twiml = await buildLanguageSelectedTwiml(
+    { called, caller, callSid, digit },
+    PUBLIC_HOST,
+  );
+
+  if (!twiml) {
+    console.warn(`[/voice/language] unknown number ${called}`);
+    return c.body(
+      buildHangupTwiml("We're sorry — this number isn't configured. Goodbye."),
       200,
       { "content-type": "text/xml" },
     );
