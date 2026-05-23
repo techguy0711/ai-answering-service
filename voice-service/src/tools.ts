@@ -13,6 +13,14 @@ import { Prisma } from "@prisma/client";
 import { withTenant } from "./db.js";
 import type { Session } from "./session.js";
 
+// Google Neural2 voices paired to each supported BCP-47 language code.
+// Using female voices consistently with the default en-US-Neural2-F.
+export const VOICE_FOR_LANGUAGE: Record<string, string> = {
+  "en-US": "en-US-Neural2-F",
+  "es-US": "es-US-Neural2-A",
+  "es-MX": "es-US-Neural2-A",
+};
+
 export type ToolHandler = (
   session: Session,
   input: any,
@@ -270,12 +278,14 @@ export const tools: Record<string, ToolDefinition> = {
     async handler(_session, input: { language: string }) {
       // Returns a ConversationRelay 'language' message — emitted on the
       // WebSocket to actually change voices/STT.
+      const voice = VOICE_FOR_LANGUAGE[input.language];
       return {
         result: { ok: true, language: input.language },
         conversationRelayMessage: {
           type: "language",
           ttsLanguage: input.language,
           transcriptionLanguage: input.language,
+          ...(voice ? { voice } : {}),
         },
       };
     },

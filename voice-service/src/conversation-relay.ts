@@ -23,6 +23,7 @@ import { loadSystemPrompt } from "./prompts.js";
 import { runTurn } from "./llm.js";
 import { newSession, type Session } from "./session.js";
 import { dbAdmin, withTenant } from "./db.js";
+import { VOICE_FOR_LANGUAGE } from "./tools.js";
 
 type CrSetup = {
   type: "setup";
@@ -177,7 +178,7 @@ export class ConversationRelayHandler {
       this.send({ type: "text", token: "", last: true });
     } else if (msg.digit === "2") {
       this.session.phase = "ready";
-      this.send({ type: "language", ttsLanguage: "es-US", transcriptionLanguage: "es-US" });
+      this.send({ type: "language", ttsLanguage: "es-US", transcriptionLanguage: "es-US", voice: VOICE_FOR_LANGUAGE["es-US"] });
       this.send({ type: "text", token: "¡Gracias! ¿En qué le puedo ayudar hoy?", last: false });
       this.send({ type: "text", token: "", last: true });
     } else {
