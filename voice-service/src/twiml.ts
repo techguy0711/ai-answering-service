@@ -115,7 +115,7 @@ function conversationRelayXml(opts: {
   greeting: string;
 }): string {
   const wsUrl = `wss://${opts.publicHost}/cr`;
-  const voice = VOICE_FOR_LANGUAGE[opts.language] ?? "en-US-Neural2-F";
+  const voice = VOICE_FOR_LANGUAGE[opts.language] ?? "Google.en-US-Neural2-F";
   return `<Connect>
     <ConversationRelay
       url="${escapeXmlAttr(wsUrl)}"
