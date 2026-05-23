@@ -21,6 +21,8 @@ export type Session = {
   systemPrompt: string;
   /** Set true when the user interrupts; in-flight token streams check this. */
   cancelInFlight: boolean;
+  /** Call flow phase: language_select before PIN/conversation, ready after. */
+  phase: "language_select" | "ready";
 };
 
 export function newSession(args: {
@@ -40,5 +42,6 @@ export function newSession(args: {
     hasGreeted: false,
     systemPrompt: args.systemPrompt,
     cancelInFlight: false,
+    phase: "language_select",
   };
 }

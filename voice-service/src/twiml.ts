@@ -35,8 +35,8 @@ export async function buildIncomingTwiml(
   const wsUrl = `wss://${publicHost}/cr`;
   const businessName = escapeXml(number.tenant.name);
   const greeting =
-    `Hi, thanks for calling ${businessName}. ` +
-    `How can I help you today?`;
+    `Thank you for calling ${businessName}. ` +
+    `For English, press 1. Para español, oprima el 2.`;
 
   // ConversationRelay TwiML.
   //   - language="en-US": initial language. The LLM can switch mid-call via a

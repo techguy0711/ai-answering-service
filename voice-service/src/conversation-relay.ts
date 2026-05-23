@@ -70,8 +70,7 @@ export class ConversationRelayHandler {
         this.handleInterrupt(msg);
         break;
       case "dtmf":
-        // Not used yet — we'll wire DTMF flows when phase 2 adds e.g.
-        // "press 1 for English" fallbacks. For now, ignore.
+        await this.handleDtmf(msg);
         break;
       case "error":
         console.error("[cr] error from Twilio:", msg.description);
@@ -169,12 +168,33 @@ export class ConversationRelayHandler {
     // We don't speak first — the welcomeGreeting in TwiML handles that.
   }
 
+  private async handleDtmf(msg: CrDtmf): Promise<void> {
+    if (!this.session || this.session.phase !== "language_select") return;
+
+    if (msg.digit === "1") {
+      this.session.phase = "ready";
+      this.send({ type: "text", token: "Thank you! How can I help you today?", last: false });
+      this.send({ type: "text", token: "", last: true });
+    } else if (msg.digit === "2") {
+      this.session.phase = "ready";
+      this.send({ type: "language", ttsLanguage: "es-US", transcriptionLanguage: "es-US" });
+      this.send({ type: "text", token: "¡Gracias! ¿En qué le puedo ayudar hoy?", last: false });
+      this.send({ type: "text", token: "", last: true });
+    } else {
+      this.send({ type: "text", token: "Para inglés, oprima el 1. Para español, oprima el 2.", last: false });
+      this.send({ type: "text", token: "", last: true });
+    }
+  }
+
   private async handlePrompt(msg: CrPrompt): Promise<void> {
     if (!this.session) {
       console.warn("[cr] prompt before setup");
       return;
     }
     if (msg.voicePrompt.trim().length === 0) return;
+
+    // Caller spoke instead of pressing a key — advance past language selection.
+    this.session.phase = "ready";
 
     await runTurn(this.session, msg.voicePrompt, {
       onText: (token) => {
