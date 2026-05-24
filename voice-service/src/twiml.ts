@@ -39,7 +39,7 @@ export async function buildIncomingTwiml(
   const businessName = escapeXml(number.tenant.name);
   const gatherAction = escapeXmlAttr(`https://${publicHost}/voice/language`);
 
-  // Timeout fallback (no key pressed within 5 s): start in English.
+  // Timeout fallback (no key pressed within 3 s): start in English.
   const fallback = conversationRelayXml({
     publicHost,
     tenantId: number.tenantId,
@@ -51,9 +51,9 @@ export async function buildIncomingTwiml(
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather numDigits="1" action="${gatherAction}" method="POST" timeout="5">
-    <Say language="en-US">Thank you for calling ${businessName}. For English, press 1.</Say>
-    <Say language="es-US">Para español, oprima el 2.</Say>
+  <Gather numDigits="1" action="${gatherAction}" method="POST" timeout="3">
+    <Say language="en-US">Thank you for calling ${businessName}. For Spanish, press star.</Say>
+    <Say language="es-US">Para español, oprima la estrella.</Say>
   </Gather>
   ${fallback}
 </Response>`;
@@ -76,7 +76,7 @@ export async function buildLanguageSelectedTwiml(
   });
   if (!number) return null;
 
-  const language = params.digit === "2" ? "es-US" : "en-US";
+  const language = params.digit === "*" ? "es-US" : "en-US";
   const businessName = number.tenant.name;
   const greeting =
     language === "es-US"
